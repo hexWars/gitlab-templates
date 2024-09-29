@@ -1,0 +1,36 @@
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+stages:
+  - build
+  - deploy
+
+variables:
+  # 可以填 TAG 和 HEAD
+  TAG: 0.0.1
+
+build:
+  tags:
+    - ssh-test
+  stage: deploy
+  needs:
+    - test:sync-dir
+  # variables:
+  #   如果不希望服务器clone仓库
+  #   GIT_STRATEGY: none 
+  extends: .test-info
+  before_script:
+    # 可以使用其他的工具，例如nvm
+    - |
+      curl https://mise.run | sh
+      echo "$HOME/.local/bin" >> $GITHUB_PATH
+      echo "$HOME/.local/share/mise/shims" >> $GITHUB_PATH
+      mise use -g node@12.22.12
+    - node -v
+  script:
+    # 如果无法正常使用，需要前面加上mise exec，例如：`mise exec -- npm install`
+    - npm install
+    - npm run build
+
+

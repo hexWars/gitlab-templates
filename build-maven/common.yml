@@ -1,0 +1,62 @@
+
+variables:
+  # 可以填 TAG 和 HEAD
+  TAG: 0.0.1
+  PORT: 9000
+
+stages:
+  - build
+  - deploy
+
+.test-info:
+  environment:
+    name: developer
+    url: http://test-server.com
+
+maven-build:
+  stage: build
+  tag:
+    - ssh-test
+  extends: .test-info
+  before_script:
+    - mvn -version
+    - java -version
+  script:
+    - |
+      git fetch --tags
+      git checkout $TAG
+    - mvn clean package
+    # - mv x x
+    # 可以使用dependencies代替rsync
+    # - rsync -av --chmod=755 ./*.jar devops@*.com:~/
+
+deploy:
+  stage: deploy
+  tags:
+    - ssh-test
+  extends: .test-info
+  needs:
+    - build
+  before_script:
+    - java -version
+  script:
+    - |
+      JAVA_PID=$(lsof -ti:$PORT)
+      echo "原来的PID： $JAVA_PID 停止"
+      lsof -ti :$PORT | xargs -I{} kill -9 {} || true
+      rsync -av --chmod=755 ~/cache/cx-back.jar /home/devops/cx-back/cx-back.jar # 这里的地址和正式服不一样
+    # 使用nohup命令启动程序，并将输出重定向到nohup.log文件
+    - nohup java -jar XXX.jar > nohup.log 2>&1 & disown
+    # 等待程序启动
+    - sleep 30
+    # 检查日志文件中是否包含启动成功的关键字
+    - |
+      if grep -q "Started AdminApplication" nohup.log; then 
+        JAVA_PID=$(lsof -ti :$PORT)
+        echo "程序启动成功，新的PID是 $JAVA_PID";
+      else 
+        echo "程序启动失败"; 
+        exit 1; 
+      fi
+
+
